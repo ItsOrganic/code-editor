@@ -3,21 +3,18 @@ import CodeEditorWindow from "./CodeEditorWindow";
 import axios from "axios";
 import { classnames } from "../utils/general";
 import { languageOptions } from "../constants/languageOptions";
-
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
 import { defineTheme } from "../lib/defineTheme";
 import useKeyPress from "../hooks/useKeyPress";
-// import Footer from "./Footer";
 import OutputWindow from "./OutputWindow";
 import CustomInput from "./CustomInput";
 import OutputDetails from "./OutputDetails";
 import ThemeDropdown from "./ThemeDropdown";
 import LanguagesDropdown from "./LanguagesDropdown";
+import { auth } from "./firebase"; // Import Firebase auth module
 
-const javascriptDefault = `// Welcome to the Online Code Editor!
-`;
+const javascriptDefault = `// Welcome to the Online Code Editor!`;
 
 const Landing = () => {
   const [code, setCode] = useState(javascriptDefault);
@@ -26,6 +23,7 @@ const Landing = () => {
   const [processing, setProcessing] = useState(null);
   const [theme, setTheme] = useState("cobalt");
   const [language, setLanguage] = useState(languageOptions[0]);
+  const [user, setUser] = useState(null); // State to track user authentication status
 
   const enterPress = useKeyPress("Enter");
   const ctrlPress = useKeyPress("Control");
@@ -42,6 +40,7 @@ const Landing = () => {
       handleCompile();
     }
   }, [ctrlPress, enterPress]);
+
   const onChange = (action, data) => {
     switch (action) {
       case "code": {
@@ -53,8 +52,9 @@ const Landing = () => {
       }
     }
   };
+
   const handleCompile = () => {
-    setProcessing(true);
+      setProcessing(true);
     const formData = {
       language_id: language.id,
       // encode source code in base64
@@ -134,7 +134,7 @@ const Landing = () => {
     }
   };
 
-  function handleThemeChange(th) {
+  const handleThemeChange = (th) => {
     const theme = th;
     console.log("theme...", theme);
 
@@ -143,14 +143,35 @@ const Landing = () => {
     } else {
       defineTheme(theme.value).then((_) => setTheme(theme));
     }
-  }
+  };
+
   useEffect(() => {
     defineTheme("oceanic-next").then((_) =>
       setTheme({ value: "oceanic-next", label: "Oceanic Next" })
     );
   }, []);
 
-  const showSuccessToast = (msg) => {
+  useEffect(() => {
+    // Add listener to user authentication state changes
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user); // Update user state based on authentication status
+    });
+    return () => unsubscribe(); // Clean up listener on unmount
+  }, []);
+
+  const handleSignOut = () => {
+    auth
+      .signOut()
+      .then(() => {
+        // Sign-out successful, set user state to null
+        setUser(null);
+      })
+      .catch((error) => {
+        // Handle sign-out errors
+        console.error("Error signing out:", error);
+      });
+  };
+    const showSuccessToast = (msg) => {
     toast.success(msg || `Compiled Successfully!`, {
       position: "top-right",
       autoClose: 1000,
@@ -192,7 +213,10 @@ const Landing = () => {
           <LanguagesDropdown onSelectChange={onSelectChange} />
         </div>
         <div className="px-4 py-2">
-          <ThemeDropdown handleThemeChange={handleThemeChange} theme={theme} />
+          <ThemeDropdown
+            handleThemeChange={handleThemeChange}
+            theme={theme}
+          />
         </div>
       </div>
       <div className="flex flex-row space-x-4 items-start px-4 py-4">
@@ -226,8 +250,11 @@ const Landing = () => {
           {outputDetails && <OutputDetails outputDetails={outputDetails} />}
         </div>
       </div>
-      {/* <Footer /> */}
+      {/* Sign-out button */}
+      {user && <button onClick={handleSignOut}>Sign Out</button>}
     </>
   );
 };
+
 export default Landing;
+
